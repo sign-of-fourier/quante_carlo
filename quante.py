@@ -20,12 +20,12 @@ class hp_tuning_session:
         self.ei_history = [-1]*n_processors
 
 
-    def initialize_gpr(self, p):
+    def initialize_gpr(self, p, keep_thread_id=False):
         
         self.next_points = self.get_random_points(self.n_processors)
         self.layer_history = self.next_points
         
-        self.test_new_points(p)
+        self.test_new_points(p, keep_thread_id)
         
     def get_random_points(self, batch_size):
         
@@ -62,9 +62,13 @@ class hp_tuning_session:
                 
         return best_ccdf, best_ids
     
-    def test_new_points(self, p):
+    def test_new_points(self, p, pass_thread_id=True):
 
-        self.scores = p.map(self.model, self.next_points)
+        if pass_thread_id:
+            self.scores = p.map(self.model, [{'next_points': self.next_points[i],                                                                              'thread_id': i} for i in range(self.n_processors)])
+        else:
+            self.scores = p.map(self.model, self.next_points)
+        
         self.score_history += self.scores
         self.y_best = max([np.mean(s) for s in self.score_history])
         
@@ -87,19 +91,19 @@ class hp_tuning_session:
             
 
 
-def carlo(f, limits, kernel, n_batches, n_processors, n_iterations):
+def carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thread_id=False):
     def qc_tune_nn(p):
 
         q = hp_tuning_session(f, limits, kernel, n_batches, n_processors)
-        q.initialize_gpr(p)
+        q.initialize_gpr(p, keep_thread_id)
         iteration_id = [0] * n_processors
 
-        for j in range(n_iterations):
-            q.get_new_points()
-            q.test_new_points(p)
-            iteration_id += [j+1]*n_processors
+#        for j in range(n_iterations):
+#            q.get_new_points()
+#            q.test_new_points(p, keep_thread_id)
+#            iteration_id += [j+1]*n_processors
 
-        return q, iteration_id
+        return q#, iteration_id
     return qc_tune_nn
 
 
