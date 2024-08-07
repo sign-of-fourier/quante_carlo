@@ -9,7 +9,7 @@ quante.carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thre
 ### Parameters
 <table>
    <tr>
-      <td><u><b><font size="+2">Parameter Name</font></b></u></b></td><td><u><b><font size="+2">Description</font></b></u></td>
+      <td><ins><v><font size="+2">Parameter Name</font></b></ins></b></td><td><ins><b><font size="+2">Description</font></b></ins></td>
    </tr>
    <tr>
       <td><b>f<b> </td> </td><td>evaluation function</td>
