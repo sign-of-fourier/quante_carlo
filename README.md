@@ -5,6 +5,7 @@
 - Uses <a href="https://hal.science/hal-00732512v2/document">Bayesian Optimization Algorithm</a>
 quante.carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thread_id=False)
 <hr>
+
 ### parameters
 <table>
    <tr>
