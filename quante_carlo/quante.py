@@ -75,7 +75,8 @@ class hp_tuning_session:
     def get_new_points(self):
         
         gpr = GaussianProcessRegressor(kernel=self.kernel,random_state=0)
-        with warnings.catch_warnings(action='ignore'):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
             gpr.fit(self.layer_history, [np.mean(x) for x in self.score_history])
 
         # optimize krig model
@@ -84,9 +85,17 @@ class hp_tuning_session:
         self.ei_history += [best_ccdf]*self.n_processors
         self.next_points = best_ids
         self.layer_history += best_ids
+  
+    def set_iteration_id(self, iteration_history):
+        self.iteration_id = iteration_history
 
     def summary(self):
-        return pd.DataFrame({'score': [np.mean(s) for s in self.score_history],
+        if len(self.iteration_id) != len(self.score_history):
+            iteration_id = [-1] * len(self.score_history)
+        else:
+            iteration_id = self.iteration_id
+
+        return pd.DataFrame({'iteration': iteration_id, 'score': [np.mean(s) for s in self.score_history],
                              'layers': self.layer_history, 'ei': self.ei_history})
             
 
@@ -98,12 +107,13 @@ def carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thread_
         q.initialize_gpr(p, keep_thread_id)
         iteration_id = [0] * n_processors
 
-#        for j in range(n_iterations):
-#            q.get_new_points()
-#            q.test_new_points(p, keep_thread_id)
-#            iteration_id += [j+1]*n_processors
+        for j in range(n_iterations):
+            q.get_new_points()
+            q.test_new_points(p, keep_thread_id)
+            iteration_id += [j+1]*n_processors
 
-        return q#, iteration_id
+        q.set_iteration_id(iteration_id)
+        return q
     return qc_tune_nn
 
 
