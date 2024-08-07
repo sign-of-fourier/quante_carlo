@@ -9,7 +9,7 @@ quante.carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thre
 ### Parameters
 <table>
    <tr>
-      <td><b><font size="+1">Parameter Name</font></b></td><td><b><font size="+1">Description</font></b><td>
+      <td><b><u></u><font size="+1">Parameter Name</font></b></u></b></td><td><u></u><b><font size="+1">Description</font></b></u></td>
    </tr>
    <tr>
       <td>  <b>f<b> </td> </td><td>evaluation function</td>
@@ -29,7 +29,7 @@ quante.carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thre
    <tr>
       <td><b>n_iterations</b></td><td> number of iterations to run; can alternatively specify a stopping criteria</td>
    </tr>
-         <td><b>logfile_location</b></td><td> <td>      this file will be overwritten </td>
+         <td><b>logfile_location</b></td> <td>      this file will be overwritten </td>
    </tr>
 </table>
 
