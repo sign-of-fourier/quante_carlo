@@ -6,27 +6,30 @@
 quante.carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thread_id=False)
 <hr>
 
-### parameters
+### Parameters
 <table>
    <tr>
-      <td>  __f__ </td><td>evaluation function</td>
+      <td><b><font size="+1">Parameter Name</font></b></td><td><b><font size="+1">Description</font></b><td>
    </tr>
    <tr>
-      <td>limits</td><td>list of parameter ranges</td>
+      <td>  <b>f<b> </td> </td><td>evaluation function</td>
    </tr>
    <tr>
-      <td>kernel </td><td> kernel functions for Gaussian Process Regressor from sklearn.gaussian_process.kernels</td>
+      <td><b>limits</b></td><td>list of parameter ranges</td>
    </tr>
    <tr>
-      <td>
-- <b>n_batches</b>  number of batches to use when
-- __n_processors__ number of processors; should align with actual hardware
-- __n_iterations__ number of iterations to run; can alternatively specify a stopping criteria
-    __logfile_location__
-      </td>
-      <td>
-         this file will be overwritten
-      </td>
+      <td><b>kernel</b> </td><td> kernel functions for Gaussian Process Regressor from sklearn.gaussian_process.kernels</td>
+   </tr>
+   <tr>
+      <td><b>n_batches</b></td><td>number of batches to use when</td>
+   </tr>
+   <tr>
+         <td><b>n_processors</b></td><td> number of processors; should align with actual hardware</td>
+   </tr>
+   <tr>
+      <td><b>n_iterations</b></td><td> number of iterations to run; can alternatively specify a stopping criteria</td>
+   </tr>
+         <td><b>logfile_location</b></td><td> <td>      this file will be overwritten </td>
    </tr>
 </table>
 
