@@ -3,11 +3,11 @@ from torch import nn
 import pandas as pd
 import numpy as np
 
-input_layer_size = 28*28
-output_layer_size = 10
-n_iterations = 5
-n_batches = 10
-train_batch_size = 100
+# input_layer_size = 28*28
+# output_layer_size = 10
+# n_iterations = 5
+# n_batches = 10
+# train_batch_size = 100
 
 
 class data_loader:
@@ -56,20 +56,21 @@ class NeuralNetwork(nn.Module):
 
         self.stack = torch.nn.Sequential(*layers)
 
-def instance(p):
 
+
+def instance(p):
         loss_fn = torch.nn.CrossEntropyLoss()
         device = 'cuda:'+str(p['thread_id'])
-        model = NeuralNetwork(input_layer_size, p['next_points'], n_outputs=output_layer_size)
+        model = NeuralNetwork(p['input_layer_size'], p['hparameters'], n_outputs=p['output_layer_size'])
         model.to(device)
         optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
         loss_history = []
         model.train()
 
-        loader = data_loader(.05)
+        loader = data_loader(p['batch_size'])
     
-        for i in range(n_iterations):
-            for batch in range(n_batches):
+        for i in range(p['train_iterations']):
+            for batch in range(p['n_batches']):
                 X_train, y_train = loader.get_batch(batch)
 
                 X_train_torch = torch.tensor(X_train.values, dtype=torch.float)
@@ -97,8 +98,7 @@ def instance(p):
         pred = model(X)
 
 
-        return loss.item()#loss.item()#.detatch()
-
+        return 1-loss.item()
 
 
 

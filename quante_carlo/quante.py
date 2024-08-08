@@ -6,8 +6,8 @@ import pandas as pd
 import warnings
 
 class hp_tuning_session:
-    def __init__(self, model, layer_ranges, kernel, n_batches, n_processors):
-        self.n_batches = n_batches
+    def __init__(self, model, layer_ranges, kernel, batch_sz, n_processors):
+        self.gpr_batch_size = batch_sz
         self.kernel = kernel
         self.model = model
         self.layer_ranges = layer_ranges
@@ -20,12 +20,12 @@ class hp_tuning_session:
         self.ei_history = [-1]*n_processors
 
 
-    def initialize_gpr(self, p, keep_thread_id=False):
+    def initialize_gpr(self, p, other_parameters):
         
         self.next_points = self.get_random_points(self.n_processors)
         self.layer_history = self.next_points
         
-        self.test_new_points(p, keep_thread_id)
+        self.test_new_points(p, other_parameters)
         
     def get_random_points(self, batch_size):
         
@@ -62,12 +62,14 @@ class hp_tuning_session:
                 
         return best_ccdf, best_ids
     
-    def test_new_points(self, p, pass_thread_id=True):
+    def test_new_points(self, p, other_parameters):
+        
+        parameters = [other_parameters] * self.n_processors
+        for i in range(self.n_processors):
+            parameters[i]['hparameters'] = self.next_points[i]
+            parameters[i]['thread_id'] = i
 
-        if pass_thread_id:
-            self.scores = p.map(self.model, [{'next_points': self.next_points[i],                                                                              'thread_id': i} for i in range(self.n_processors)])
-        else:
-            self.scores = p.map(self.model, self.next_points)
+        self.scores = p.map(self.model, parameters)
         
         self.score_history += self.scores
         self.y_best = max([np.mean(s) for s in self.score_history])
@@ -80,7 +82,7 @@ class hp_tuning_session:
             gpr.fit(self.layer_history, [np.mean(x) for x in self.score_history])
 
         # optimize krig model
-        self.batch_points = [self.get_random_points(self.n_processors) for n in range(self.n_batches)]
+        self.batch_points = [self.get_random_points(self.n_processors) for n in range(self.gpr_batch_size)]
         best_ccdf, best_ids = self.qei(gpr)
         self.ei_history += [best_ccdf]*self.n_processors
         self.next_points = best_ids
@@ -96,20 +98,20 @@ class hp_tuning_session:
             iteration_id = self.iteration_id
 
         return pd.DataFrame({'iteration': iteration_id, 'score': [np.mean(s) for s in self.score_history],
-                             'layers': self.layer_history, 'ei': self.ei_history})
+                             'hparameters': self.layer_history, 'qEi': self.ei_history})
             
 
 
-def carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thread_id=False):
+def carlo(f, limits, kernel, gpr_batch_size, n_processors, n_iterations, other_parameters={}):
     def qc_tune_nn(p):
 
-        q = hp_tuning_session(f, limits, kernel, n_batches, n_processors)
-        q.initialize_gpr(p, keep_thread_id)
+        q = hp_tuning_session(f, limits, kernel, gpr_batch_size, n_processors)
+        q.initialize_gpr(p, other_parameters)
         iteration_id = [0] * n_processors
 
         for j in range(n_iterations):
             q.get_new_points()
-            q.test_new_points(p, keep_thread_id)
+            q.test_new_points(p, other_parameters)
             iteration_id += [j+1]*n_processors
 
         q.set_iteration_id(iteration_id)
