@@ -3,19 +3,14 @@ from torch import nn
 import pandas as pd
 import numpy as np
 
-# input_layer_size = 28*28
-# output_layer_size = 10
-# n_iterations = 5
-# n_batches = 10
-# train_batch_size = 100
 
 
 class data_loader:
     def __init__(self,batch_pct):
-        self.X_train = pd.read_csv('X_train.csv')
-        self.X_test = pd.read_csv('X_test.csv')
-        self.y_train = pd.read_csv('y_train.csv')
-        self.y_test = pd.read_csv('y_test.csv')
+        self.X_train = torch.tensor(pd.read_csv('X_train.csv').values, dtype=torch.float)
+        self.X_test = torch.tensor(pd.read_csv('X_test.csv').values, dtype=torch.float)
+        self.y_train = torch.tensor(pd.read_csv('y_train.csv').values, dtype=torch.float)
+        self.y_test = torch.tensor(pd.read_csv('y_test.csv').values, dtype=torch.float)
         # with open('y_train.csv') as f:
         #     self.y_train = [float(x) for x in f.read().split(',')]
         # with open('y_test.csv') as f:
@@ -59,46 +54,42 @@ class NeuralNetwork(nn.Module):
 
 
 def instance(p):
-        loss_fn = torch.nn.CrossEntropyLoss()
-        device = 'cuda:'+str(p['thread_id'])
-        model = NeuralNetwork(p['input_layer_size'], p['hparameters'], n_outputs=p['output_layer_size'])
-        model.to(device)
-        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-        loss_history = []
-        model.train()
+    loss_fn = torch.nn.BCEWithLogitsLoss()
+    device = 'cuda:'+str(p['thread_id'])
+    model = NeuralNetwork(p['input_layer_size'], p['hparameters'], n_outputs=p['output_layer_size'])
+    model.to(device)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+    loss_history = []
+    model.train()
 
-        loader = data_loader(p['batch_size'])
+    loader = data_loader(p['batch_size'])
     
-        for i in range(p['train_iterations']):
-            for batch in range(p['n_batches']):
-                X_train, y_train = loader.get_batch(batch)
+    for i in range(p['train_iterations']):
+        for batch in range(p['n_batches']):
+            X_train, y_train = loader.get_batch(batch)
 
-                X_train_torch = torch.tensor(X_train.values, dtype=torch.float)
-                y_train_torch = torch.tensor(y_train.values, dtype=torch.float)
+            X = X_train.to(device)
+            y = y_train.to(device)
 
-                X = X_train_torch.to(device)
-                y = y_train_torch.to(device)
-
-                pred = model(X)
-                loss = loss_fn(pred, y)
+            pred = model(X)
+            loss = loss_fn(pred, y)
         
-                loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
-                loss_history.append(loss.item())
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            loss_history.append(loss.item())
 
-        X_test, y_test = loader.get_batch(-1)
+    X_test, y_test = loader.get_batch(-1)
 
-        model.eval()
-        X_test_torch = torch.tensor(X_test.values, dtype=torch.float)
-        y_test_torch = torch.tensor(y_test.values, dtype=torch.float)
+    model.eval()
 
-        X = X_test_torch.to(device)
-        y = y_test_torch.to(device)
-        pred = model(X)
+    X = X_test.to(device)
+    y = y_test.to(device)
+    pred = model(X)
 
+    torch.cuda.empty_cache()
 
-        return 1-loss.item()
+    return 1-loss.item()
 
 
 
