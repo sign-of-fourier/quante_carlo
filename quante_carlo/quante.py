@@ -74,13 +74,11 @@ class hp_tuning_session:
 
 
 
-
     def get_new_points(self, p):
         
 
         hp_ranges = ';'.join([','.join([str(x) for x in s]) for s in self.layer_ranges])
         hp_types = ','.join(self.hp_types)
-        
         #stem = 'http://localhost:8000/bayes_opt?hp_types='+hp_types+'&g_batch_size='+str(self.gpr_batch_size)+'&layer_ranges='+hp_ranges
         url = "http://localhost:8000/bayes_opt?hp_types={}&g_batch_size={}&layer_ranges={}&y_best={}&n_gpus={}".format(
                 hp_types, 
@@ -96,8 +94,7 @@ class hp_tuning_session:
             if score > best_score:
                 best_score = score
                 best_points = points
-
-        self.next_points = [tuple([int(x) for x in s.split(',')]) for s in best_points.split(';')]
+        self.next_points = [tuple([int(x) if t == 'int' else float(x) for x, t in zip(s.split(','), self.hp_types)]) for s in best_points.split(';')]
         self.layer_history += self.next_points
         self.ei_history += [best_score]*self.n_processors
 
@@ -118,13 +115,13 @@ class hp_tuning_session:
 
 
 def carlo(f, limits, gpr_batch_size, n_gpr_processors, n_processors, n_iterations, other_parameters={}, log_file='/tmp/qclog_file.txt'):
-    def qc_tune_nn(p):
+    def qc_tune(p):
 
         q = hp_tuning_session(f, limits, gpr_batch_size, n_gpr_processors, n_processors, log_file)
         q.initialize_gpr(p, other_parameters)
         iteration_id = [0] * n_processors
-
         for j in range(n_iterations):
+            print(j)
             q.log("iteration {}".format(j))
             start = time.time()
             q.get_new_points(p)
@@ -137,6 +134,6 @@ def carlo(f, limits, gpr_batch_size, n_gpr_processors, n_processors, n_iteration
 
         q.set_iteration_id(iteration_id)
         return q
-    return qc_tune_nn
+    return qc_tune
 
 
