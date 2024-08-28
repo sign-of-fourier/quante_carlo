@@ -26,11 +26,6 @@ def qei(hp_ranges, g_batch_size, history_path, y_best, n_procs):
 
     best_ids = []
     best_ccdf = 0
-    #with open(task_file) as f:
-    #    points = f.read().split('|')
-   # hp_ranges_numerical = [x.split(',') for x in hp_ranges.split(';')]
-#    for x, y in zip(hp_ranges_numerical, 
-#
     points = [get_random_points(hp_ranges, n_procs) for a in range(g_batch_size)]
 
     gpr = GaussianProcessRegressor(kernel=kernel,random_state=0)
@@ -42,7 +37,6 @@ def qei(hp_ranges, g_batch_size, history_path, y_best, n_procs):
         
 
     for batch in points:
-            #mu, sigma = gpr.predict([tuple([float(n) for n in p.split(',')]) for p in batch.split(';')], return_cov=True)
         mu, sigma = gpr.predict(batch, return_cov=True)
         ccdf = 1 - multivariate_normal.cdf([y_best]*n_procs, mu, sigma)
         if ccdf > best_ccdf:
@@ -55,9 +49,6 @@ def qei(hp_ranges, g_batch_size, history_path, y_best, n_procs):
 app = Flask(__name__)
 
 
-@app.route('/')
-def hewo():
-    return "hewo";
 
 
 @app.route("/bayes_opt")
