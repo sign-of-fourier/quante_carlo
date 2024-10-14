@@ -6,11 +6,11 @@ import numpy as np
 
 
 class data_loader:
-    def __init__(self,batch_pct):
-        self.X_train = torch.tensor(pd.read_csv('X_train.csv').values, dtype=torch.float)
-        self.X_test = torch.tensor(pd.read_csv('X_test.csv').values, dtype=torch.float)
-        self.y_train = torch.tensor(pd.read_csv('y_train.csv').values, dtype=torch.float)
-        self.y_test = torch.tensor(pd.read_csv('y_test.csv').values, dtype=torch.float)
+    def __init__(self, train_test_files, batch_pct):
+        self.X_train = torch.tensor(pd.read_csv(train_test_files['x_train']).values, dtype=torch.float)
+        self.X_test = torch.tensor(pd.read_csv(train_test_files['x_test']).values, dtype=torch.float)
+        self.y_train = torch.tensor(pd.read_csv(train_test_files['y_train']).values, dtype=torch.float)
+        self.y_test = torch.tensor(pd.read_csv(train_test_files['y_test']).values, dtype=torch.float)
         # with open('y_train.csv') as f:
         #     self.y_train = [float(x) for x in f.read().split(',')]
         # with open('y_test.csv') as f:
@@ -62,7 +62,7 @@ def instance(p):
     loss_history = []
     model.train()
 
-    loader = data_loader(p['batch_size'])
+    loader = data_loader(p['train_test_files'], p['batch_size'])
     
     for i in range(p['train_iterations']):
         for batch in range(p['n_batches']):
