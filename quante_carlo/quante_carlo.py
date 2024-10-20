@@ -10,6 +10,11 @@ import time
 import os
 from datetime import datetime
 
+
+def post_history(compound_request):
+    arguments = compound_request.split('|')
+    return requests.post(arguments[0], data=json.loads(arguments[1]))
+
 class hp_tuning_session:
     def __init__(self, model, layer_ranges, batch_sz, n_gpr_processors, n_processors, log_file):
         self.gpr_batch_size = batch_sz
@@ -70,13 +75,13 @@ class hp_tuning_session:
         
         self.score_history += self.scores
         self.y_best = max([np.mean(s) for s in self.score_history])
-        pd.DataFrame({'scores': self.score_history, 'points': [','.join([str(x) for x in h]) for h in self.layer_history]}).to_csv('history.txt', index=False)
-
-
+        self.history = {'scores': self.score_history, 'points': [','.join([str(x) for x in h]) for h in self.layer_history]}
+        pd.DataFrame(self.history).to_csv('history.txt', index=False)
 
     def get_new_points(self, p):
-        
-
+        """
+        makes an API request to get next set of points using batch EI
+        """
         hp_ranges = ';'.join([','.join([str(x) for x in s]) for s in self.layer_ranges])
         hp_types = ','.join(self.hp_types)
         #stem = 'http://localhost:8000/bayes_opt?hp_types='+hp_types+'&g_batch_size='+str(self.gpr_batch_size)+'&layer_ranges='+hp_ranges
@@ -87,7 +92,10 @@ class hp_tuning_session:
                 self.y_best,
                 self.n_processors)
         #urls = [stem + str(i) + '&y_best='+str(self.y_best) for i in range(self.n_gpr_processors)]
-        worker_results = p.map(requests.get, [url] * self.n_gpr_processors)
+        
+        historical_points = ';'.join(self.history['points'])
+        historical_scores = ','.join([str(s) for s in self.history['scores']])
+        worker_results = p.map(post_history, [url+'|'+json.dumps({'scores': historical_scores, 'points': historical_points})]*self.n_processors)
         jsponse = [json.loads(a.content.decode('utf-8')) for a in worker_results]
         best_score = -1
         for score, points in zip([j['best_ccdf'] for j in jsponse], [j['next_points'] for j in jsponse]):
@@ -114,9 +122,8 @@ class hp_tuning_session:
             
 
 
-def carlo(f, limits, gpr_batch_size, n_gpr_processors, n_processors, n_iterations, other_parameters={}, log_file='/tmp/qclog_file.txt'):
+def hp_tune(f, limits, gpr_batch_size, n_gpr_processors, n_processors, n_iterations, other_parameters={}, log_file='/tmp/qclog_file.txt'):
     def qc_tune(p):
-
         q = hp_tuning_session(f, limits, gpr_batch_size, n_gpr_processors, n_processors, log_file)
         q.initialize_gpr(p, other_parameters)
         iteration_id = [0] * n_processors
