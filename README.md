@@ -37,5 +37,3 @@ before you run the module, you start up the servers
 <code>gunicorn -w 24 'flask_worker:app'</code>
 
 
-
-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
