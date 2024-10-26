@@ -36,7 +36,7 @@ quante.carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thre
 ## Tutorial
 before you run the module, you start up the servers
 <code>gunicorn -w 24 'flask_worker:app'</code>
-<img src='arch.png'>
+<img src='setup.png'>
 On the one hand, multi-threading is fast but unstable and potentially unsuitable. On the other hand spawning is thread safe, yet requires respawning at each iteration. gunicorn is a stable, multi-process gateway that allows the hyperparameter tuners to act as a microservice. The processes do not exit upon completion and so, do not need to be re-spawned. Also, gunicorn is very stable: it restarts automatically and traps exceptions.
 1. A multi-threaded pool is created using the multiprocessing module to be used as a parallel job manager.
 2. The job manager first chooses the initial hyperparameters randomly.
