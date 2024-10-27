@@ -32,8 +32,8 @@ quante.carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thre
          <td><b>logfile_location</b></td> <td> this file will be overwritten </td>
    </tr>
 </table>
-
+<hr>
+## Tutorial
 before you run the module, you start up the servers
 <code>gunicorn -w 24 'flask_worker:app'</code>
-
 
