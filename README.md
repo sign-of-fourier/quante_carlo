@@ -51,6 +51,6 @@ Steps 3 and 4 are repeated. Each time, the history is passed to the hyperparamet
 <h2>Notes </h2>
 <ul>
   <li>The parameters are transformed into lognormals by using the probability integral transform. This is a better way to scale, especiaily for Bayesian Optimization</li>
-  <li>Expected Improvement of a variable is caluclated by converting E[max(x) | <i>x<sub>i</sub></i> > best] for all <i>i</i> by defining new variables <i>z<sub>i</sub></i> = <i>x<sub>i</sub> - x<sub>j</sub></i> and calculating E[<i>x<sub>i</sub></i> | <i>x<sub>i</sub></i> > best & <i>x<sub>i</sub></i> > x~j] for all <i>i</i>i> &ne; <i>j</i></li>
+  <li>Expected Improvement of a variable is caluclated by converting E[max(x) | <i>x<sub>i</sub></i> > best] for all <i>i</i> by defining new variables <i>z<sub>i</sub></i> = <i>x<sub>i</sub> - x<sub>j</sub></i> and calculating E[<i>x<sub>i</sub></i> | <i>x<sub>i</sub></i> > best & <i>x<sub>i</sub></i> > x~j] for all <i>i</i> &ne; <i>j</i></li>
 </ul>
  
