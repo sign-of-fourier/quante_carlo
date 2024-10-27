@@ -33,7 +33,24 @@ quante.carlo(f, limits, kernel, n_batches, n_processors, n_iterations, keep_thre
    </tr>
 </table>
 <hr>
+
 ## Tutorial
 before you run the module, you start up the servers
-<code>gunicorn -w 24 'flask_worker:app'</code>
 
+<code>gunicorn -w 24 'flask_worker:app'</code>
+<img src='setup.png'>
+On the one hand, multi-threading is fast but unstable and potentially unsuitable. On the other hand spawning is thread safe, yet requires respawning at each iteration. gunicorn is a stable, multi-process gateway that allows the hyperparameter tuners to act as a microservice. The processes do not exit upon completion and so, do not need to be re-spawned. Also, gunicorn is very stable: it restarts automatically and traps exceptions.
+<ol>
+  <li>A multi-threaded pool is created using the multiprocessing module to be used as a parallel job manager.</li>
+  <li>The job manager first chooses the initial hyperparameters randomly.</li>
+  <li>The job manager uses the user defined modules to make calls to the GPU. Each instance of the module has it's own instance of a data loader. This approach scales across multiple machines and it allows each job to have a different set of hyper-parameters. The result of this step is an error or loss score for each trained model.</li>
+  <li>The scores are passed to the hyperparameter microservice via API which returns the best next choice for hyperparameter tuning.</li>
+</ol>
+Steps 3 and 4 are repeated. Each time, the history is passed to the hyperparameter tuning service. The hyperparameter tuner transforms the data into a lognormal distribution. (Batch) expected improvement works better when the data is lognormal. The initial distribution is irrelevant. Some variables such as the betas in the Adam optimizer are usually tested on a log scale. After the transformation, the hyperparameter tuner can easily handle this skew. However, if you want to focus on an exponential distributed parameter, then you can handle that in the user-defined function, for example, by passing the log of the parameter to the hp tuner.
+<hr>
+<h2>Notes </h2>
+<ul>
+  <li>The parameters are transformed into lognormals by using the probability integral transform. This is a better way to scale, especiaily for Bayesian Optimization</li>
+  <li>Expected Improvement of a variable is caluclated by converting E[max(x) | x~i > best] for all *i* by defining new variables z~i = x~i - x~j and calculating E[x~i | x~i > best & a~i > x~j] for all *i* ne &#8800; j</li>
+</ul>
+ 

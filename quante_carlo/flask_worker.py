@@ -1,9 +1,10 @@
 from flask import Flask, request
+import requests
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import DotProduct, WhiteKernel, RBF, Matern
 import pandas as pd
 import warnings
-from scipy.stats import multivariate_normal, norm
+from scipy.stats import multivariate_normal, norm, lognorm
 import random
 import numpy as np
 
@@ -24,18 +25,36 @@ def get_random_points(hp_ranges, batch_size):
     return points
 
 def probability_integral_transform(scores):
-
+    """
+    It doesn't matter what space the scores are in during the Gaussian Process step. If they are similar 
+    to a normal, they are only compared with the current best in that space
+    """
 
     df = pd.DataFrame({'historical': scores, 'original_order': range(len(scores))})
     N = df.shape[0]
     df.reset_index(inplace=True)
     center_adjustment = 1/(2*N)
     df['uniform'] = [x/N+center_adjustment for x in df.index]
-    df['normal'] = norm.ppf(df['uniform'])
+    df['normal'] = [np.log(p) for p in lognorm.ppf(df['uniform'], 1)]
     df.sort_values('original_order', inplace=True)
     return df['normal'].tolist()
 
-def qei(hp_ranges, g_batch_size, history, n_procs):
+
+def mvn_cdf(x, vcv):
+    n = len(x)
+    url = 'https://d9mj660cv0.execute-api.us-east-2.amazonaws.com/mvncdf/mvn'
+    v_hat = np.sqrt(np.diagonal(vcv))
+    x_hat = x/v_hat
+    y = np.diag(1/v_hat)
+    vcv_hat = np.matmul(y, np.matmul(vcv, y))
+    # mvn.cdf(x/v_hat, [0, 0], np.matmul(y, np.matmul(vcv, y)))
+    s_hat = ','.join([str(vcv_hat[a][b]) for a in range(0, n-1) for b in range(a+1, n)])
+    x_hat = ','.join([str(x) for x in x_hat])
+    response = requests.get(url + '?x=' + x_hat + '&s=' + s_hat)
+    return float(response.text)
+
+
+def qei(hp_ranges, g_batch_size, history, n_procs, use_qc):
 
     kernel = DotProduct()+ WhiteKernel()
 
@@ -80,7 +99,10 @@ def qei(hp_ranges, g_batch_size, history, n_procs):
                     #print(m)
                     #print(mx)
                     #print(sigma[a][a])
-                    _qei += np.exp(sigma[a][a]/2)*multivariate_normal.cdf(m, [0]*n_procs, mx)
+                    if use_qc == 'True':
+                        _qei += np.exp(sigma[a][a]/2)*mvn_cdf(m, mx)
+                    else:
+                        _qei += np.exp(sigma[a][a]/2)*multivariate_normal.cdf(m, [0]*n_procs, mx)
                     #_qei += multivariate_normal.cdf(m, [0]*n_procs, mx)
                 except Exception as e:
                     with open('error_log.txt', 'a') as f:
@@ -131,15 +153,16 @@ def kriging():
    
    task_file = request.args.get('task_file') 
    gpr_batch_size = request.args.get('g_batch_size')
-   layer_ranges = request.args.get('layer_ranges')
+   hp_ranges = request.args.get('hp_ranges')
    hp_types = request.args.get('hp_types')
    n_gpus = request.args.get('n_gpus')
+   use_qc = request.args.get('use_qc')
 
    data = request.form
 
-   hp_ranges_numerical = [x.split(',') for x in layer_ranges.split(';')]
+   hp_ranges_numerical = [x.split(',') for x in hp_ranges.split(';')]
    hp_ranges = [(int(x[0]), int(x[1])) if y=='int' else (float(x[0]), float(x[1])) for x, y in zip(hp_ranges_numerical, hp_types.split(','))]
-   ccdf, best_ids = qei(hp_ranges, int(gpr_batch_size), data,  int(n_gpus))
+   ccdf, best_ids = qei(hp_ranges, int(gpr_batch_size), data,  int(n_gpus), use_qc)
 
    best_ids = [[int(g[i]) if t == 'int' else g[i] for i, t in enumerate(hp_types.split(','))] for g in best_ids]
 

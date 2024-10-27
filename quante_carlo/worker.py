@@ -56,9 +56,9 @@ class NeuralNetwork(nn.Module):
 def instance(p):
     loss_fn = torch.nn.BCEWithLogitsLoss()
     device = 'cuda:'+str(p['thread_id'])
-    model = NeuralNetwork(p['input_layer_size'], p['hparameters'], n_outputs=p['output_layer_size'])
+    model = NeuralNetwork(p['input_layer_size'], p['hparameters'][:3], n_outputs=p['output_layer_size'])
     model.to(device)
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.SGD(model.parameters(), lr=p['hparameters'][-1])
     loss_history = []
     model.train()
 

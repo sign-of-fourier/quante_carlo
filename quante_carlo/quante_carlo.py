@@ -16,13 +16,13 @@ def post_history(compound_request):
     return requests.post(arguments[0], data=json.loads(arguments[1]))
 
 class hp_tuning_session:
-    def __init__(self, model, layer_ranges, batch_sz, n_gpr_processors, n_processors, log_file):
+    def __init__(self, model, hp_ranges, batch_sz, n_gpr_processors, n_processors, log_file):
         self.gpr_batch_size = batch_sz
         
         self.n_gpr_processors = n_gpr_processors
         self.model = model
-        self.layer_ranges = layer_ranges
-        self.hp_types = ['int' if type(x[0]) == int else 'float' for x in layer_ranges]
+        self.hp_ranges = hp_ranges
+        self.hp_types = ['int' if type(x[0]) == int else 'float' for x in hp_ranges]
         self.n_processors = n_processors
         self.multivariate = True
         self.qc = False
@@ -44,7 +44,7 @@ class hp_tuning_session:
     def initialize_gpr(self, p, other_parameters):
         
         self.next_points = self.get_random_points(self.n_processors)
-        self.layer_history = self.next_points
+        self.hp_history = self.next_points
         
         self.test_new_points(p, other_parameters)
         
@@ -52,13 +52,13 @@ class hp_tuning_session:
         
         points = []
         for i in range(batch_size):
-            layers = []
-            for r in self.layer_ranges:
+            hp = []
+            for r in self.hp_ranges:
                 if type(r[0]) == int:
-                    layers.append(random.randint(r[0], r[1]))
+                    hp.append(random.randint(r[0], r[1]))
                 else:
-                    layers.append(random.random()*(r[1]-r[0])+r[0])
-            points.append(tuple(layers))  
+                    hp.append(random.random()*(r[1]-r[0])+r[0])
+            points.append(tuple(hp))  
         return points
 
 
@@ -75,22 +75,21 @@ class hp_tuning_session:
         
         self.score_history += self.scores
         self.y_best = max([np.mean(s) for s in self.score_history])
-        self.history = {'scores': self.score_history, 'points': [','.join([str(x) for x in h]) for h in self.layer_history]}
+        self.history = {'scores': self.score_history, 'points': [','.join([str(x) for x in h]) for h in self.hp_history]}
         pd.DataFrame(self.history).to_csv('history.txt', index=False)
 
     def get_new_points(self, p):
         """
         makes an API request to get next set of points using batch EI
         """
-        hp_ranges = ';'.join([','.join([str(x) for x in s]) for s in self.layer_ranges])
+        hp_ranges = ';'.join([','.join([str(x) for x in s]) for s in self.hp_ranges])
         hp_types = ','.join(self.hp_types)
         #stem = 'http://localhost:8000/bayes_opt?hp_types='+hp_types+'&g_batch_size='+str(self.gpr_batch_size)+'&layer_ranges='+hp_ranges
-        url = "http://localhost:8000/bayes_opt?hp_types={}&g_batch_size={}&layer_ranges={}&y_best={}&n_gpus={}".format(
-                hp_types, 
-                self.gpr_batch_size, 
-                hp_ranges, 
-                self.y_best,
-                self.n_processors)
+        url = "http://localhost:8000/bayes_opt?hp_types={}&g_batch_size={}&hp_ranges={}&y_best={}&n_gpus={}&use_qc=False".format(hp_types, 
+             self.gpr_batch_size, 
+             hp_ranges, 
+             self.y_best,
+             self.n_processors)
         #urls = [stem + str(i) + '&y_best='+str(self.y_best) for i in range(self.n_gpr_processors)]
         
         historical_points = ';'.join(self.history['points'])
@@ -103,7 +102,7 @@ class hp_tuning_session:
                 best_score = score
                 best_points = points
         self.next_points = [tuple([int(x) if t == 'int' else float(x) for x, t in zip(s.split(','), self.hp_types)]) for s in best_points.split(';')]
-        self.layer_history += self.next_points
+        self.hp_history += self.next_points
         self.ei_history += [best_score]*self.n_processors
 
         return 1
@@ -118,7 +117,7 @@ class hp_tuning_session:
             iteration_id = self.iteration_id
 
         return pd.DataFrame({'iteration': iteration_id, 'score': [np.mean(s) for s in self.score_history],
-                             'hparameters': self.layer_history, 'qEi': self.ei_history})
+                             'hparameters': self.hp_history, 'qEi': self.ei_history})
             
 
 
