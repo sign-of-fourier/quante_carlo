@@ -7,6 +7,7 @@ import warnings
 from scipy.stats import multivariate_normal, norm, lognorm
 import random
 import numpy as np
+import json
 
 
 
@@ -63,10 +64,10 @@ def qei(hp_ranges, g_batch_size, history, n_procs, use_qc):
 
     gpr = GaussianProcessRegressor(kernel=kernel,random_state=0)
     # it really doesn't have to be a tuple
-    historical_points = [tuple([float(p) for p in hpt.split(',')]) for hpt in history.get('points').split(';')]
+    historical_points = [tuple([float(p) for p in hpt.split(',')]) for hpt in history['points'].split(';')]
 
     
-    normal_scores = probability_integral_transform([float(s) for s in history.get('scores').split(',')])
+    normal_scores = probability_integral_transform([float(s) for s in history['scores'].split(',')])
     y_best = max(normal_scores)
 
 
@@ -80,7 +81,7 @@ def qei(hp_ranges, g_batch_size, history, n_procs, use_qc):
         try:
             mu, sigma = gpr.predict(batch, return_cov=True)
             for a in range(n_procs):
-                sigma[a][a] = sigma[a][a]+.03
+                sigma[a][a] = sigma[a][a]+.01
             _qei = 0
             for a in range(n_procs):
 
@@ -158,14 +159,13 @@ def kriging():
    n_gpus = request.args.get('n_gpus')
    use_qc = request.args.get('use_qc')
 
-   data = request.form
-
+   data = json.loads(request.data)
    hp_ranges_numerical = [x.split(',') for x in hp_ranges.split(';')]
    hp_ranges = [(int(x[0]), int(x[1])) if y=='int' else (float(x[0]), float(x[1])) for x, y in zip(hp_ranges_numerical, hp_types.split(','))]
    ccdf, best_ids = qei(hp_ranges, int(gpr_batch_size), data,  int(n_gpus), use_qc)
 
    best_ids = [[int(g[i]) if t == 'int' else g[i] for i, t in enumerate(hp_types.split(','))] for g in best_ids]
-
+   #return "{'status': 200}"
    return "{\"next_points\": \""+';'.join([','.join([str(x) for x in s]) for s in best_ids])+"\",\"best_ccdf\": "+str(ccdf)+"}\n"
 
 
