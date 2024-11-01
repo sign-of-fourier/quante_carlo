@@ -13,12 +13,14 @@ from datetime import datetime
 
 def post_history(compound_request):
     arguments = compound_request.split('|')
-    return requests.post(arguments[0], data=json.loads(arguments[1]))
+#    return requests.post(arguments[0], data=json.loads(arguments[1]))
+    return requests.post(arguments[0], data=arguments[1])
 
-class hp_tuning_session:
-    def __init__(self, model, hp_ranges, batch_sz, n_gpr_processors, n_processors, log_file):
+class session:
+    def __init__(self, model, hp_ranges, batch_sz, n_gpr_processors, n_processors, n_iter, other_parameters, log_file):
         self.gpr_batch_size = batch_sz
-        
+        self.other_parameters = other_parameters
+        self.n_iter = n_iter
         self.n_gpr_processors = n_gpr_processors
         self.model = model
         self.hp_ranges = hp_ranges
@@ -85,7 +87,7 @@ class hp_tuning_session:
         hp_ranges = ';'.join([','.join([str(x) for x in s]) for s in self.hp_ranges])
         hp_types = ','.join(self.hp_types)
         #stem = 'http://localhost:8000/bayes_opt?hp_types='+hp_types+'&g_batch_size='+str(self.gpr_batch_size)+'&layer_ranges='+hp_ranges
-        url = "http://localhost:8000/bayes_opt?hp_types={}&g_batch_size={}&hp_ranges={}&y_best={}&n_gpus={}&use_qc=False".format(hp_types, 
+        url = "https://boaz.onrender.com/bayes_opt?hp_types={}&g_batch_size={}&hp_ranges={}&y_best={}&n_gpus={}&use_qc=False".format(hp_types, 
              self.gpr_batch_size, 
              hp_ranges, 
              self.y_best,
@@ -94,6 +96,7 @@ class hp_tuning_session:
         
         historical_points = ';'.join(self.history['points'])
         historical_scores = ','.join([str(s) for s in self.history['scores']])
+        #return url+'|'+json.dumps({'scores': historical_scores, 'points': historical_points})
         worker_results = p.map(post_history, [url+'|'+json.dumps({'scores': historical_scores, 'points': historical_points})]*self.n_processors)
         jsponse = [json.loads(a.content.decode('utf-8')) for a in worker_results]
         best_score = -1
@@ -120,26 +123,24 @@ class hp_tuning_session:
                              'hparameters': self.hp_history, 'qEi': self.ei_history})
             
 
-
-def hp_tune(f, limits, gpr_batch_size, n_gpr_processors, n_processors, n_iterations, other_parameters={}, log_file='/tmp/qclog_file.txt'):
-    def qc_tune(p):
-        q = hp_tuning_session(f, limits, gpr_batch_size, n_gpr_processors, n_processors, log_file)
-        q.initialize_gpr(p, other_parameters)
-        iteration_id = [0] * n_processors
-        for j in range(n_iterations):
+    def tune(self, p):
+        self.initialize_gpr(p, self.other_parameters)
+        iteration_id = [0] * self.n_processors
+        for j in range(self.n_iter):
             print(j)
-            q.log("iteration {}".format(j))
+            self.log("iteration {}".format(j))
             start = time.time()
-            q.get_new_points(p)
-            q.log("- {} seconds getting next points".format(round(time.time()-start, 2)))
+            self.get_new_points(p)
+            self.log("- {} seconds getting next points".format(round(time.time()-start, 2)))
             start = time.time()
-            q.test_new_points(p, other_parameters)
-            q.log("- {} seconds testing next points".format(round(time.time()-start, 2)))
-            iteration_id += [j+1]*n_processors
-            q.log("- current best {}".format(q.y_best))
+            self.test_new_points(p, self.other_parameters)
+            self.log("- {} seconds testing next points".format(round(time.time()-start, 2)))
+            iteration_id += [j+1]*self.n_processors
+            self.log("- current best {}".format(self.y_best))
+            self.set_iteration_id(iteration_id)
+#def session(f, limits, gpr_batch_size, n_gpr_processors, n_processors, n_iterations, other_parameters={}, log_file='/tmp/qclog_file.txt'):
 
-        q.set_iteration_id(iteration_id)
-        return q
-    return qc_tune
+#        return q
+#    return qc_tune
 
 
