@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='quante_carlo',
-      version='0.1.4',
+      version='0.1.5',
       description='The most efficent implementation of Monte Carlo in the world.',
       url='https://quantecarlo.com',
       author='sign-of-fourier',
