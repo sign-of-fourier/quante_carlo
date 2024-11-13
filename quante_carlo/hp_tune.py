@@ -17,7 +17,8 @@ def post_history(compound_request):
     return requests.post(arguments[0], data=arguments[1])
 
 class session:
-    def __init__(self, model, hp_ranges, batch_sz, n_gpr_processors, n_processors, n_iter, other_parameters, log_file):
+    def __init__(self, model, hp_ranges, batch_sz, n_gpr_processors, n_processors, n_iter, 
+            other_parameters, use_qc, bo_url, log_file):
         self.gpr_batch_size = batch_sz
         self.other_parameters = other_parameters
         self.n_iter = n_iter
@@ -27,7 +28,8 @@ class session:
         self.hp_types = ['int' if type(x[0]) == int else 'float' for x in hp_ranges]
         self.n_processors = n_processors
         self.multivariate = True
-        self.qc = False
+        self.use_qc = use_qc
+        self.bo_url = bo_url
         self.score_history = []
         self.y_best = -1
         self.iteration_id = []
@@ -86,12 +88,16 @@ class session:
         """
         hp_ranges = ';'.join([','.join([str(x) for x in s]) for s in self.hp_ranges])
         hp_types = ','.join(self.hp_types)
-        #stem = 'http://localhost:8000/bayes_opt?hp_types='+hp_types+'&g_batch_size='+str(self.gpr_batch_size)+'&layer_ranges='+hp_ranges
-        url = "https://boaz.onrender.com/bayes_opt?hp_types={}&g_batch_size={}&hp_ranges={}&y_best={}&n_gpus={}&use_qc=False".format(hp_types, 
+        #if p['use_qc'] == 'True':
+        #    stem = 'https://boaz.onrender.com'
+        #else:
+        #    stem = 'http://localhost:8000'
+        url = self.bo_url + "/bayes_opt?hp_types={}&g_batch_size={}&hp_ranges={}&y_best={}&n_gpus={}&use_qc={}".format(hp_types, 
              self.gpr_batch_size, 
              hp_ranges, 
              self.y_best,
-             self.n_processors)
+             self.n_processors, 
+             self.use_qc)
         #urls = [stem + str(i) + '&y_best='+str(self.y_best) for i in range(self.n_gpr_processors)]
         
         historical_points = ';'.join(self.history['points'])
