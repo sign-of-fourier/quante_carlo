@@ -10,6 +10,21 @@ import time
 import os
 from datetime import datetime
 
+from IPython.display import display, clear_output
+
+
+class color:
+   PURPLE = '\033[95m'
+   CYAN = '\033[96m'
+   DARKCYAN = '\033[36m'
+   BLUE = '\033[94m'
+   GREEN = '\033[92m'
+   YELLOW = '\033[93m'
+   RED = '\033[91m'
+   BOLD = '\033[1m'
+   UNDERLINE = '\033[4m'
+   END = '\033[0m'
+
 
 def post_history(compound_request):
     arguments = compound_request.split('|')
@@ -133,16 +148,26 @@ class session:
         self.initialize_gpr(p, self.other_parameters)
         iteration_id = [0] * self.n_processors
         for j in range(self.n_iter):
-            print(j)
+
+
             self.log("iteration {}".format(j))
             start = time.time()
             self.get_new_points(p)
-            self.log("- {} seconds getting next points".format(round(time.time()-start, 2)))
+            seconds_getting_next_point = time.time()-start
+            self.log("- {} seconds getting next points".format(round(seconds_getting_next_point, 2)))
             start = time.time()
             self.test_new_points(p, self.other_parameters)
-            self.log("- {} seconds testing next points".format(round(time.time()-start, 2)))
+            seconds_testing = time.time() - start
+            self.log("- {} seconds testing next points".format(round(seconds_testing, 2)))
             iteration_id += [j+1]*self.n_processors
             self.log("- current best {}".format(self.y_best))
+            clear_output(wait=True)
+            print("\033[1m{}\033[0m out of \033[1m{}\033[0m ".format(j+1, self.n_iter))
+            print("Seconds getting next points \033[91m{}\033[0m,  Seconds testing next points {} Current best accuracy: {}".format(round(seconds_getting_next_point, 4),
+                                                                                                                        round(seconds_testing, 4), round(self.y_best, 4)))
+
+
+
             self.set_iteration_id(iteration_id)
 #def session(f, limits, gpr_batch_size, n_gpr_processors, n_processors, n_iterations, other_parameters={}, log_file='/tmp/qclog_file.txt'):
 
