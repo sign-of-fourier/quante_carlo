@@ -1,13 +1,14 @@
 import requests
 import json
 import re
+import random
 
 class bayesian_optimization_api:
 
-    def __init__(self, batch_size, keys, hp_types, hp_space, n_procs, use_qc):
-        self.batch_size = batch_size
-        self.historical_parameters = ['.5,.5', '.4,.4']
-        self.historical_values = [.5, 0.2]
+    def __init__(self, bo_batch_size, keys, hp_types, hp_space, n_procs, use_qc):
+        self.bo_batch_size = bo_batch_size
+        self.historical_parameters = []
+        self.historical_values = []
         self.bo_url = 'https://boaz.onrender.com'
         self.keys = keys
         self.hp_types = [hp_types[k] for k in keys]
@@ -17,6 +18,7 @@ class bayesian_optimization_api:
         self.use_qc = use_qc
         self.n_processors = n_procs
         self.local_buffer = []
+        self.min_parameter_history_size = 10
 
     def register(self, parameters, value):
         self.historical_parameters.append(','.join([str(parameters[k]) for k in self.keys]))
@@ -27,13 +29,15 @@ class bayesian_optimization_api:
         """
         makes an API request to get next set of points using batch EI
         """
-        if self.recent_update or len(self.local_buffer) < 1:
+        if len(self.historical_parameters) < self.min_parameter_history_size:
+            self.local_buffer = [','.join([str(random.randint(h[0], h[1])) if t == 'int' else str(random.uniform(h[0], h[1])) for h, t in zip(self.hp_ranges, self.hp_types)])]
+        elif self.recent_update or len(self.local_buffer) < 1:
             hp_ranges = ';'.join([','.join([str(x) for x in s]) for s in self.hp_ranges])
             hp_types = ','.join(self.hp_types)
             url = self.bo_url +\
                     "/bayes_opt?hp_types={}&g_batch_size={}&hp_ranges={}&y_best={}&n_gpus={}&use_qc={}".\
                     format(hp_types,
-                           self.batch_size,
+                           self.bo_batch_size,
                            hp_ranges,
                            self.y_best,
                            self.n_processors,
