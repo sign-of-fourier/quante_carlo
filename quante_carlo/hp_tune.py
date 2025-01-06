@@ -8,6 +8,7 @@ import pandas as pd
 import warnings
 import time
 import os
+import re
 from datetime import datetime
 
 from IPython.display import display, clear_output
@@ -60,12 +61,12 @@ class session:
         with open(self.logfile, 'a') as f:
             f.write('[' + dt + '] '+ x + "\n")
 
-    def initialize_gpr(self, p, other_parameters):
+    def initialize_gpr(self, p):
         
         self.next_points = self.get_random_points(self.n_processors)
         self.hp_history = self.next_points
         
-        self.test_new_points(p, other_parameters)
+        self.test_new_points(p)
         
     def get_random_points(self, batch_size):
         
@@ -82,11 +83,11 @@ class session:
 
 
     
-    def test_new_points(self, p, other_parameters):
+    def test_new_points(self, p):
         
         parameters = []
         for i in range(self.n_processors):
-            parameters.append(other_parameters.copy())
+            parameters.append(self.other_parameters.copy())
             parameters[i]['hparameters'] = self.next_points[i]
             parameters[i]['thread_id'] = i
         
@@ -118,8 +119,9 @@ class session:
         historical_points = ';'.join(self.history['points'])
         historical_scores = ','.join([str(s) for s in self.history['scores']])
         #return url+'|'+json.dumps({'scores': historical_scores, 'points': historical_points})
-        worker_results = p.map(post_history, [url+'|'+json.dumps({'scores': historical_scores, 'points': historical_points})]*self.n_processors)
-        jsponse = [json.loads(a.content.decode('utf-8')) for a in worker_results]
+        self.worker_results = p.map(post_history, [url+'|'+json.dumps({'scores': historical_scores, 'points': historical_points})]*self.n_processors)
+        
+        jsponse = [json.loads(re.sub('inf', '10', a.content.decode('utf-8'))) for a in self.worker_results]
         best_score = -1
         for score, points in zip([j['best_ccdf'] for j in jsponse], [j['next_points'] for j in jsponse]):
             if score > best_score:
@@ -145,7 +147,7 @@ class session:
             
 
     def tune(self, p):
-        self.initialize_gpr(p, self.other_parameters)
+        self.initialize_gpr(p)
         iteration_id = [0] * self.n_processors
         for j in range(self.n_iter):
 
@@ -156,7 +158,7 @@ class session:
             seconds_getting_next_point = time.time()-start
             self.log("- {} seconds getting next points".format(round(seconds_getting_next_point, 2)))
             start = time.time()
-            self.test_new_points(p, self.other_parameters)
+            self.test_new_points(p)
             seconds_testing = time.time() - start
             self.log("- {} seconds testing next points".format(round(seconds_testing, 2)))
             iteration_id += [j+1]*self.n_processors
