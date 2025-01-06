@@ -54,7 +54,7 @@ class NeuralNetwork(nn.Module):
 
 def instance(p):
     loss_fn = torch.nn.BCEWithLogitsLoss()
-    device = 'cuda'#+str(p['thread_id'])
+    device = 'cuda:'+str(p['thread_id'])
 
     # everything in hparameters except the lats one is for architecture
     model = NeuralNetwork(p['input_layer_size'], p['hparameters'][:-1], n_outputs=p['output_layer_size'])
