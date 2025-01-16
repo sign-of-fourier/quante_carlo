@@ -1,5 +1,5 @@
-## Use Few Shot Optimization to improve prompts
-
+# Use Few Shot Optimization to improve prompts
+<img src='androids.png'></img>
 
 LLMs can be used for basic machine learning tasks. Prompt optimization can be used as an alternative to or in combination with fine-tuning. Prompt optimization is less resource intensive and many times, out performs fine-tuning. In addition, prompt optimization can be easier to deploy since it does not require a separate fine-tuned model for each task, only separate prompts.
 
@@ -82,7 +82,7 @@ These scripts uses LlamaForCausalLM from the transformers library instead of in 
 
 Notice the prompt structure for and the tokens for Llama. The pipeline from transformers normally handles this for you. Since we are using LlamaForCausalLM, we have to do this ourselves.
 
-### Create Examples
+### 1. Create Examples
 The first script to creates 500 positive examples and 500 negative examples. I’ve created a directory called ‘examples’ to store the created examples. Don’t get these confused with the labeled training dataset.
 
 This script uses a very basic prompt to create an example based on an example and label of ‘positive’ or ‘negative’. It is called with parameters that say where to store the results.
@@ -115,70 +115,17 @@ for x in negative_examples:
     with open('embeddings/negative/' + x, 'w') as f:
         f.write(','.join([str(x) for x in embedding]))
 ```
-Note: The next few scripts use the following three functions. The first one takes a list of examples, a list of their associated sentiments and a new review and then returns a result. The second one parses the output based on the Llama output format. The third one takes a pair of examples, their sentiments and goes through the training samples to produce an estimated label. I’ve put them in a library named score_prompt.py.
+Note: The next few scripts use the following three functions. 
+
 ```
-import os
-import re
-import llama
-
-
-def extract_assistant(message):
-        assistant = False
-        assistant_message = []
-        for d in message.split("\n"):
-            if assistant:
-                assistant_message.append(d)
-            if d == 'assistant':
-                assistant = True
-
-        return "\n".join(assistant_message)
-        
-def evaluate(reviews, sentiments, new_review):
-    
-    background = ["You are a sentiment analyzer.",
-                  "Your job is to read a review and determine if it is positve or negative."]
-
-    few_shot = ["### EXAMPLE {} ###\n**Movie Review**\n\n{}\n\n```{}```\n".format(r[0]+1, r[1], s) for r, s in zip(enumerate(reviews), sentiments)]
-    
-    prompt = ["####INSTRUCTIONS####\n\n",
-              "Read the review below. Determine if the review is 'positive' or 'negative'.",
-              "Provide a one word answer surrounded by three backticks with no other explanation, rationale, introduction or any other text or punctionation.",
-              "\n\n#### FEW SHOT EXAMPLES ####\n\n"] + few_shot + ["\n**Movie Review**\n\n{}\n".format(new_review)]
-
-    input_ids = llama.tokenizer(llama.template.format(" ".join(background), " ".join(prompt)), return_tensors="pt")
-    input_ids.to('cuda')
-    
-    outputs = llama.model.generate(**input_ids, max_length=4096, 
-                        no_repeat_ngram_size=3,
-                        num_return_sequences=3, 
-                        do_sample=True,
-                        top_k=50, top_p=.95, temperature=.01)
-    result = llama.tokenizer.decode(outputs[0], skip_special_tokens=True)
-    
-    return extract_assistant(result)
-
-
-def predict(p):
-
-    results = []
-    for train_path in p['trainset_paths']:
-        tp = train_path.split(",")  # be careful, tp has a different meaning
-        if len(tp) == 1:
-            continue
-        if os.path.exists(tp[1]):
-    
-            with open(tp[1]) as r:
-                train_review = r.read()
-        
-            sentiment = evaluate(p['reviews'], p['sentiments'], train_review)
-            results.append(re.sub('`', '', re.sub("\n", '', sentiment)))
-
-        else:
-            print("{} not found".format(tp[1]))
-            
-    return results
+extract_assistant(message)
+evaluate(reviews, sentiments, new_reivew)
+predict(p)
 ```
-2. Testing
+
+The first one takes a list of examples, a list of their associated sentiments and a new review and then returns a result. The second one parses the output based on the Llama output format. The third one takes a pair of examples, their sentiments and goes through the training samples to produce an estimated label. I’ve put them in a library named score_prompt.py.
+
+### 2. Testing
 
 This next script randomly selects two examples to embed in the prompt and then test on the labeled examples. This can be used to create the initial samples for the Bayesian Optimization process.
 ```
