@@ -1,11 +1,13 @@
 # Use Few Shot Optimization to improve prompts
+<center>
 <img width=50% height=auto src='https://github.com/sign-of-fourier/quante_carlo/blob/dev/tutorials/prompt_optimization/androids.png'></img>
+</center>
 
 LLMs can be used for basic machine learning tasks. Prompt optimization can be used as an alternative to or in combination with fine-tuning. Prompt optimization is less resource intensive and many times, out performs fine-tuning. In addition, prompt optimization can be easier to deploy since it does not require a separate fine-tuned model for each task, only separate prompts.
 
 There are multiple ways to optimize a prompt. You can optimize the whole prompt or parts of the prompt. In this article we will focus on optimizing the “few shot” section of the prompt.
 
-The dataset I will be working with is the IMDb dataset.
+The dataset is from the IMDb dataset.
 
 The task is to classify sentiment. Here is an example of a short prompt:
 
@@ -119,14 +121,23 @@ for x in negative_examples:
         f.write(','.join([str(x) for x in embedding]))
 ```
 Note: The next few scripts use the following three functions. 
+They are in a library named score_prompt.py.
 
 ```
 extract_assistant(message)
+```
+Parses the output based on the Llama output format.
+```
 evaluate(reviews, sentiments, new_reivew)
+```
+Takes a list of examples, a list of their associated sentiments and a new review and then returns a result. 
+
+```
 predict(p)
 ```
+Takes a pair of examples, their sentiments and goes through the training samples to produce an estimated label. 
 
-The first one takes a list of examples, a list of their associated sentiments and a new review and then returns a result. The second one parses the output based on the Llama output format. The third one takes a pair of examples, their sentiments and goes through the training samples to produce an estimated label. I’ve put them in a library named score_prompt.py.
+
 
 ### Testing
 
