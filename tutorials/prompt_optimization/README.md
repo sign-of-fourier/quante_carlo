@@ -1,5 +1,5 @@
 # Use Few Shot Optimization to improve prompts
-<img src='androids.png'></img>
+<img width=50% height=auto src='https://github.com/sign-of-fourier/quante_carlo/blob/dev/tutorials/prompt_optimization/androids.png'></img>
 
 LLMs can be used for basic machine learning tasks. Prompt optimization can be used as an alternative to or in combination with fine-tuning. Prompt optimization is less resource intensive and many times, out performs fine-tuning. In addition, prompt optimization can be easier to deploy since it does not require a separate fine-tuned model for each task, only separate prompts.
 
@@ -11,11 +11,15 @@ The task is to classify sentiment. Here is an example of a short prompt:
 
 system 
 
-````
+```
 You are a sentiment analyzer.
 Your job is to determine if a movie review is 'positive' or 'negative'.
 User
+```
 
+user
+
+````
 ####INSTRSUCTIONS####
 Read the movie review below.
 Determine if the movie review is 'positive' or 'negative'.
@@ -39,17 +43,16 @@ Notice that there is an example. This is called 1 shot prompting. When there are
 
 The optimization task is to select examples that improve the performance of the prompt. Since the data we have from Kaggle is labeled, we can measure the performance.
 
-I will demonstrate Bayesian Optimization to select better examples:
+This tutorial uses Bayesian Optimization to select better examples:
 
-Use the LLM to create examples. For simplicity, we will define this as the space of possible examples.
-Convert the examples into embeddings. These embeddings will be used later in the Bayesian Optimization step.
-Begin by selecting examples and inserting them into the prompt. For our demonstration, we will use one positive and one negative.
-Run the prompt with the chosen examples for a set number of reviews from the dataset. For each review, the result of the prompt should be a label: ‘positive’ or ‘negative’.
-Compare the results to the labels in the training set to generate a score such as F1 or accuracy.
-Use the embeddings and the scores to perform Bayesian Optimization to generate a suggestion for which examples to try next.
-The code included can be found at https://github.com/sign-of-fourier/quante_carlo/tree/main/tutorials
+1. Use the LLM to create examples. For simplicity, we will define this as the space of possible examples.
+2. Convert the examples into embeddings. These embeddings will be used later in the Bayesian Optimization step.
+3. Begin by selecting examples and inserting them into the prompt. For our demonstration, we will use one positive and one negative.
+4. Run the prompt with the chosen examples for a set number of reviews from the dataset. For each review, the result of the prompt should be a label: ‘positive’ or ‘negative’.
+5. Compare the results to the labels in the training set to generate a score such as F1 or accuracy.
+6. Use the embeddings and the scores to perform Bayesian Optimization to generate a suggestion for which examples to try next.
 
-Training Set
+### Training Set
 First we create a file that contains paths to the reviews and the labels associated with those reviews.
 ```
 ls aclImdb/train/pos/ | head -50 | awk '{print "positive,aclImbd/train/pos/" $1}' > train_paths.txt 
@@ -82,7 +85,7 @@ These scripts uses LlamaForCausalLM from the transformers library instead of in 
 
 Notice the prompt structure for and the tokens for Llama. The pipeline from transformers normally handles this for you. Since we are using LlamaForCausalLM, we have to do this ourselves.
 
-### 1. Create Examples
+### Create Examples
 The first script to creates 500 positive examples and 500 negative examples. I’ve created a directory called ‘examples’ to store the created examples. Don’t get these confused with the labeled training dataset.
 
 This script uses a very basic prompt to create an example based on an example and label of ‘positive’ or ‘negative’. It is called with parameters that say where to store the results.
@@ -125,89 +128,14 @@ predict(p)
 
 The first one takes a list of examples, a list of their associated sentiments and a new review and then returns a result. The second one parses the output based on the Llama output format. The third one takes a pair of examples, their sentiments and goes through the training samples to produce an estimated label. I’ve put them in a library named score_prompt.py.
 
-### 2. Testing
+### Testing
 
 This next script randomly selects two examples to embed in the prompt and then test on the labeled examples. This can be used to create the initial samples for the Bayesian Optimization process.
-```
-import argparse
-import os
-import score_prompt
-import random
-import re
-
-if __name__ == '__main__':
-
-
-    parser = argparse.ArgumentParser("rate_reviews")
-    parser.add_argument("-i", "--input_filename", help="A file name containing paths that are a list of reviews.", type=str)
-    parser.add_argument("-o", "--output_filename", help="Name of output directory.", type=str)
-    parser.add_argument("-p", "--few_shot_positive", help="Name of directory of positive examples or path of single positive example.", type=str)
-    parser.add_argument("-n", "--few_shot_negative", help="Name of directory of negative examples or path of single negative example.", type=str)
-    
-    args = parser.parse_args()
-    with open(args.input_filename) as f:
-        trainset_paths = f.read().split("\n")
-        
-    print("{} training samples".format(len(trainset_paths)))
-
-
-    # if selecting 2 random reviews
-    reviews = []
-    traces = []
-
-    if os.path.isdir(args.few_shot_positive) and os.path.isdir(args.few_shot_negative):
-        for path, demos in zip([args.few_shot_positive, args.few_shot_negative],
-                               [os.listdir(args.few_shot_positive), os.listdir(args.few_shot_negative)]):
-            if path[-1] != '/':
-                path = path + '/'
-        
-        
-            reviews_id = path + random.choice(demos)
-            traces.append(reviews_id)
-            with open(reviews_id) as f:
-                reviews.append(f.read())
-                
-    elif os.path.isfile(args.few_shot_positive) and os.path.isfile(args.few_shot_negative):
-        for path in [args.few_shot_positive,
-                     args.few_shot_negative]:
-            with open(path) as f:
-                reviews.append(f.read())
-            traces.append(path)
-    else:
-        print('Directory path mismatch')
-        exit(0)
-
-    sentiments = ['positive', 'negative']
-
-    with open(args.output_filename, 'w') as t:
-        t.write(','.join(traces)+"\n")
-
-    results = []
-    predicted_sentiments = []
-    for train_path in trainset_paths:
-        tp = train_path.split(",")
-        if len(tp) == 1:
-            continue
-        if os.path.exists(tp[1]):
-    
-            with open(tp[1]) as r:
-                train_review = r.read()
-            
-            sentiment = re.sub("\n", '', re.sub('`', '', score_prompt.evaluate(reviews, sentiments, train_review)))
-
-            if not ((sentiment == 'positive') or (sentiment == 'negative')):
-                sentiment = 'unreadable'
-            predicted_sentiments.append(sentiment)
-        else:
-            print("{} not found".format(tp[1]))
-            
-    with open(args.output_filename, 'a') as f:
-        f.write('|'.join(predicted_sentiments))
-```
 The script is called by passing the file of labels and review paths, the desired output file and the location of the positive and negative examples. I’ve created a directory for storing the scores named ‘scores’.
+```
 python rate_reviews.py -i train_paths.txt -o scores/1.txt -p examples/positive -n examples/negative
-
-3. Parallel Bayesian Optimization
+```
+### Parallel Bayesian Optimization
 
 This next script also scores, but first, it takes the existing prompts that have been scored and performs Bayesian Optimization using a Gaussian Process Regressor. It then generates a batch of suggestions by optimizing batch Expected Improvement, a measure of how well a batch of suggestions balances the exploration, exploitation trade-off.
 
@@ -225,7 +153,7 @@ python optimize_few_shot.py -i train_paths.txt -p examples/positive -n examples/
 ```
 Though the Bayesian Optimization can be run for a single example at a time, this script demonstrates batch Bayesian Optimization which suggests the optimal batch of examples to check. This script uses multiprocessing to orchestrate multiple worker processes. If you want to see how this works without multiprocessing you can simply pass 1 to the -m argument
 
-Results
+### Results
 After 100 examples tested, here is the best pair of reviews to use as examples:
 
 Postive
