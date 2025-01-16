@@ -10,7 +10,7 @@ The dataset I will be working with is the IMDb dataset.
 The task is to classify sentiment. Here is an example of a short prompt:
 
 System
-``
+``markdown
 You are a sentiment analyzer.
 Your job is to determine if a movie review is 'positive' or 'negative'.
 User
