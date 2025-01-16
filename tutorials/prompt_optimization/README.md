@@ -1,4 +1,4 @@
-Use Few Shot Optimization to improve prompts
+## Use Few Shot Optimization to improve prompts
 
 
 LLMs can be used for basic machine learning tasks. Prompt optimization can be used as an alternative to or in combination with fine-tuning. Prompt optimization is less resource intensive and many times, out performs fine-tuning. In addition, prompt optimization can be easier to deploy since it does not require a separate fine-tuned model for each task, only separate prompts.
@@ -9,7 +9,10 @@ The dataset I will be working with is the IMDb dataset.
 
 The task is to classify sentiment. Here is an example of a short prompt:
 
-system `You are a sentiment analyzer.
+system 
+
+````
+You are a sentiment analyzer.
 Your job is to determine if a movie review is 'positive' or 'negative'.
 User
 
@@ -23,14 +26,15 @@ Surround your answer by backticks.
 I loved this movie.
 The part where Matt Dillon jumps on the trampoline was hilarious.
 
-`positive`
+```positive```
 
 **Movie Review**
 This is the best movie I've come across in a long while. Not only is this the best movie of its kind(school shooting) 
 The way Ben Coccio(the director) decided to film it was magnificent. He filmed it using teenage actors who were still attending high school.
 He filmed it in the actors own rooms and used the actors real parents as their parents in the film. Also the actors were filming too using camcorders making it seem much more like a video diary. 
 It is almost artful.(if that is indeed a word) There are a few slip ups however, for example when Cal calls brads(?) land rover a range rover(or vice versa, It's been awhile since I've seen it
-Notice that there is an example. This is called 1 shot prompting. When there are a few examples, it is called few shot prompting. Few shot prompting has been known to improve the results from a LLM.`
+Notice that there is an example. This is called 1 shot prompting. When there are a few examples, it is called few shot prompting. Few shot prompting has been known to improve the results from a LLM.
+````
 
 
 The optimization task is to select examples that improve the performance of the prompt. Since the data we have from Kaggle is labeled, we can measure the performance.
@@ -47,13 +51,14 @@ The code included can be found at https://github.com/sign-of-fourier/quante_carl
 
 Training Set
 First we create a file that contains paths to the reviews and the labels associated with those reviews.
-
+```
 ls aclImdb/train/pos/ | head -50 | awk '{print "positive,aclImbd/train/pos/" $1}' > train_paths.txt 
 ls aclImdb/train/neg/ | head -50 | awk '{print "negative,aclImbd/train/neg/" $1}' >> train_paths.txt  
+```
 This will be the set used to generate the score.
 
 Note: The three following scripts will all have use this library that loads the model and defines the prompt at the beginning. I’ve put it in library called llama.py
-
+```
 import torch
 import pandas as pd
 import argparse
@@ -72,6 +77,7 @@ llama_format = """<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 model = LlamaForCausalLM.from_pretrained("meta-llama/Llama-3.2-3B-Instruct")
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-3B-Instruct", device='cuda:0')
 model.to('cuda')
+```
 These scripts uses LlamaForCausalLM from the transformers library instead of in a Jupyter notebook. It uses a little less memory and it is easier to orchestrate as a .py file.
 
 Notice the prompt structure for and the tokens for Llama. The pipeline from transformers normally handles this for you. Since we are using LlamaForCausalLM, we have to do this ourselves.
@@ -79,7 +85,7 @@ Notice the prompt structure for and the tokens for Llama. The pipeline from tran
 Create Examples
 The first script to creates 500 positive examples and 500 negative examples. I’ve created a directory called ‘examples’ to store the created examples. Don’t get these confused with the labeled training dataset.
 
-
+```
 import llama
 
 def create_example(pos_neg):
@@ -132,6 +138,8 @@ if __name__ == '__main__':
 
             with open(args.output_directory + '/' + str(x) + '.txt', 'w') as f:
                 f.write("\n".join(assistant_message))
+                
+```
 This script uses a very basic prompt to create an example based on an example and label of ‘positive’ or ‘negative’. It is called with parameters that say where to store the results.
 
 python create_examples.py -n 500 -s negative -o examples/negative
