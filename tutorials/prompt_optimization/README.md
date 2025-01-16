@@ -82,69 +82,15 @@ These scripts uses LlamaForCausalLM from the transformers library instead of in 
 
 Notice the prompt structure for and the tokens for Llama. The pipeline from transformers normally handles this for you. Since we are using LlamaForCausalLM, we have to do this ourselves.
 
-Create Examples
+### Create Examples
 The first script to creates 500 positive examples and 500 negative examples. I’ve created a directory called ‘examples’ to store the created examples. Don’t get these confused with the labeled training dataset.
 
-```
-import llama
-
-def create_example(pos_neg):
-
-    background = ["You are movie critic teacher.",
-                  "Your job is to teach people how to review movies using an example only.", "\n"]
-
-    if pos_neg == 'positive':
-        review = 'This movie was great! I love Johnnie Depp and Margo Robbie. The part where they jumped on the trampoline was awesome!'
-    else:
-        review = 'Terrible movie. Who would trade a cow for beans? Do not see Jack and the Beanie Stalk. The theater smelled and the popcorn was stale.'
-
-    prompt = ["Write a {} movie review based on a movie that you know or make one up.".format(pos_neg),
-              "Do not give any introductions, instructions, context, labels or explanations or any other text.", "Only provide a single movie review of 100 words or less.",
-              "\n\n###Example###\n{}\n\n".format(review)]
-
-    input_ids = llama.tokenizer(llama.template.format(" ".join(background), " ".join(prompt)), return_tensors="pt")
-    input_ids.to('cuda:0')
-
-    outputs = llama.model.generate(**input_ids, max_length=4096,
-                                   no_repeat_ngram_size=3,
-                                   num_return_sequences=3,
-                                   do_sample=True,
-                                   top_k=50, top_p=.95, temperature=.9)
-    result = llama.tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-    return result
-
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser("create_exapmple")
-    parser.add_argument("-n", "--n_examples", help="Number of examples to create.", type=int)
-    parser.add_argument("-s", "--sentiment", help="Which sentiment to use: 'positve' or 'negative'.", type=str)
-    parser.add_argument("-o", "--output_directory", help="Name of output directory.", type=str)
-    args = parser.parse_args()
-
-    results = []
-    for x in range(args.n_examples):
-        example = create_example(args.sentiment)
-
-        assistant = False
-        assistant_message = []
-        for d in example.split("\n"):
-            if assistant:
-                assistant_message.append(d)
-            if d == 'assistant':
-                assistant = True
-            results.append("\n".join(assistant_message))
-
-            with open(args.output_directory + '/' + str(x) + '.txt', 'w') as f:
-                f.write("\n".join(assistant_message))
-                
-```
 This script uses a very basic prompt to create an example based on an example and label of ‘positive’ or ‘negative’. It is called with parameters that say where to store the results.
-
+```
 python create_examples.py -n 500 -s negative -o examples/negative
+```
 Next, we use Minish Lab embedding model to create embedding representations of the movie reviews. The snippet is not a script and can be run from a Notebook. The Minish Lab embedding encoders are very light weight.
-
+```
 from model2vec import StaticModel
 import os
 
@@ -168,9 +114,9 @@ for x in negative_examples:
         
     with open('embeddings/negative/' + x, 'w') as f:
         f.write(','.join([str(x) for x in embedding]))
+```
 Note: The next few scripts use the following three functions. The first one takes a list of examples, a list of their associated sentiments and a new review and then returns a result. The second one parses the output based on the Llama output format. The third one takes a pair of examples, their sentiments and goes through the training samples to produce an estimated label. I’ve put them in a library named score_prompt.py.
-
-
+```
 import os
 import re
 import llama
@@ -231,10 +177,11 @@ def predict(p):
             print("{} not found".format(tp[1]))
             
     return results
+```
 2. Testing
 
 This next script randomly selects two examples to embed in the prompt and then test on the labeled examples. This can be used to create the initial samples for the Bayesian Optimization process.
-
+```
 import argparse
 import os
 import score_prompt
@@ -309,290 +256,13 @@ if __name__ == '__main__':
             
     with open(args.output_filename, 'a') as f:
         f.write('|'.join(predicted_sentiments))
+```
 The script is called by passing the file of labels and review paths, the desired output file and the location of the positive and negative examples. I’ve created a directory for storing the scores named ‘scores’.
-
 python rate_reviews.py -i train_paths.txt -o scores/1.txt -p examples/positive -n examples/negative
+
 3. Parallel Bayesian Optimization
 
 This next script also scores, but first, it takes the existing prompts that have been scored and performs Bayesian Optimization using a Gaussian Process Regressor. It then generates a batch of suggestions by optimizing batch Expected Improvement, a measure of how well a batch of suggestions balances the exploration, exploitation trade-off.
-
-import argparse
-import os
-import random
-import re
-import pandas as pd
-import score_prompt
-import requests
-import json
-from scipy.stats import lognorm, multivariate_normal as mvn
-import numpy as np
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import Matern, DotProduct, WhiteKernel, RBF
-import multiprocessing as mp
-
-def probability_integral_transform(scores):
-    """
-    It doesn't matter what space the scores are in during the Gaussian Process step. If they are similar 
-    to a normal, they are only compared with the current best in that space
-    """
-
-    df = pd.DataFrame({'historical': scores, 'original_order': range(len(scores))})
-    N = df.shape[0]
-    df.reset_index(inplace=True)
-    center_adjustment = 1/(2*N)
-    df['uniform'] = [x/N+center_adjustment for x in df.index]
-    df['normal'] = [np.log(p) for p in lognorm.ppf(df['uniform'], 1)]
-    df.sort_values('original_order', inplace=True)
-    return df['normal'].tolist()
-
-
-class bo_embedding:
-    """
-    Requires that a defined search space be passed
-    """
-    def __init__(self, kernel, 
-                 embedding_space, bo_batch_size, url='https://boaz.onrender.com'):
-        self.url = url
-        self.bo_batch_size = bo_batch_size
-        self.embedding_space = embedding_space
-        self.kernel = kernel
-
-    def fit_gpr(self, embeddings, scores):
-
-        normal_scores = probability_integral_transform(scores)
-        self.y_best = max(normal_scores)
-
-        gpr = GaussianProcessRegressor(kernel=self.kernel)
-        self.gpr = gpr.fit(embeddings, normal_scores)
-    
-    def get_candidates(self, N):
-        
-        self.candidates = []
-        self.candidate_ids = []
-        self.MUs = []
-        self.COVs = []
-        for b in range(N):
-            if self.bo_batch_size == 1:
-                cid = random.randint(0, len(self.embedding_space)-1)
-                self.candidate_ids.append(cid)
-                self.candidates.append(self.embedding_space[cid])
-            else:
-                candidate = []
-                candidate_id = []
-                for a in range(self.bo_batch_size):
-                    cid = random.randint(0, len(self.embedding_space)-1)
-                    candidate.append( self.embedding_space[cid])
-                    candidate_id.append(cid)
-                self.candidate_ids.append(candidate_id.copy())
-                self.candidates.append(candidate.copy())
-                
-                mu, sigma = self.gpr.predict(candidate, return_cov=True)
-                self.MUs.append(mu.copy())
-                self.COVs.append(sigma.copy())
-                
-        if self.bo_batch_size == 1:
-            self.MUs = self.gpr.predict(self.candidates)
-
-    def calculate_qei(self):
-        
-        if self.bo_batch_size == 1:
-            self.scores = [np.exp(m+s**2/2)*(1-norm.cdf(self.y_best, m+s**2, s)) for m in self.MUs]
-        else:
-            url = self.url + '/qei?n={}&y_best={}'.format(self.bo_batch_size, self.y_best)
-            S_as_str = []
-            for s in self.COVs:
-                S_as_str.append(';'.join([','.join([str(r) for r in row]) for row in s]))
-            response = requests.post(url, data=json.dumps({'sigma': '|'.join(S_as_str),
-                                                      'k': ';'.join([','.join([str(self.y_best-x) for x in row]) for row in self.MUs])}))
-            try:
-                jsponse = json.loads(response.content.decode('utf-8'))
-                self.scores = [float(j) for j in jsponse['scores'].split(',')]
-                return jsponse
-            except Exception as e:
-                print(e)
-                return [-1]
-
-
-def get_scored_emebeddings(training_index, scores_directory):
-
-    with open(training_index) as f:
-        truth = f.read().split("\n")
-    embeddings = []
-    F1 = []
-    paired_embedding_ids = []
-    scores = os.listdir(scores_directory)
-    for score_file in scores:
-        with open(scores_directory + '/' + score_file) as f:
-            model_output = f.read().split("\n") # first line is which samples are used
-        
-        if len(model_output) > 2:
-            sentiments = ''.join(model_output[1:]).split('|')
-        else:
-            sentiments = model_output[1].split('|')
-                
-        tp = 0
-        tn = 0
-        u = 0
-        for t, s in zip(truth, sentiments):
-            true_sentiment = t.split(',')[0]
-            
-            if (true_sentiment == 'negative') and (s == 'negative'):
-                tn += 1
-            
-            if (true_sentiment == 'positive') and (s == 'positive'):
-                tp += 1
-                
-            if (true_sentiment == 'unreadable'):
-                u += 1
-        N = len(sentiments) - u
-        
-        fp_fn = N - tn - tp
-        print("{} Accuracy {}, F1 {}".format(score_file,  (tp+tn)/N, tp/(tp+.5*fp_fn)))
-        F1.append(tp/(tp+.5*fp_fn))
-        paths = model_output[0].split(',')
-        with open(re.sub('examples', 'embeddings', paths[0])) as f:
-            pos_embedding = f.read()    
-        with open(re.sub('examples', 'embeddings', paths[1])) as f:
-            neg_embedding = f.read()
-        
-        paired_embedding_ids.append(model_output[0])
-        
-        e = pos_embedding + ',' + neg_embedding
-        embeddings.append([float(x) for x in e.split(',')])
-    
-    return embeddings, F1, paired_embedding_ids
-
-def get_embedding_space(postive_examples, negative_examples, paired_embedding_ids):
-    
-    
-    positive_embeddings = []
-    for x in positive_examples:
-        with open('embeddings/positive/' + x) as f:
-            positive_embeddings.append(','.join([str(round(float(x), 4)) for x in f.read().split(',')]))
-
-    negative_embeddings = []
-    for x in negative_examples:
-        with open('embeddings/negative/' + x) as f:
-            negative_embeddings.append(','.join([str(round(float(x), 4)) for x in f.read().split(',')]))
-
-
-    # the embedding to optimize is just the positive embedding followed by the negative embedding
-    embedding_space = []
-    evaluated_ids = []
-    id_to_pair = []
-    ct = 0
-    for pos, pname in zip(positive_embeddings, positive_examples):
-        for neg, nname in zip(negative_embeddings, negative_examples):
-            combined_embedding = pos + ',' + neg
-            embedding_space.append([float(f) for f in combined_embedding.split(',')])
-            pair = 'examples/positive/{},examples/negative/{}'.format(pname, nname)
-            id_to_pair.append(pair)
-            if pair in paired_embedding_ids:
-                evaluated_ids.append(ct)
-            ct += 1
-            
-    return embedding_space, evaluated_ids, id_to_pair
-
-
-
-def score_examples(trainset_paths, reviews, entiments):
-    
-    results = []
-    for train_path in trainset_paths:
-        tp = train_path.split(",")  # be careful, tp has a different meaning
-        if len(tp) == 1:
-            continue
-        if os.path.exists(tp[1]):
-    
-            with open(tp[1]) as r:
-                train_review = r.read()
-        
-            sentiment = score_prompt.evaluate(reviews, sentiments, train_review)
-            results.append(sentiment)
-
-        else:
-            print("{} not found".format(tp[1]))
-    return results
-
-
-def save(scored_directory, path_pair_string, job_results):
-    
-    for job in job_results:
-        already_scored = os.listdir(scored_directory)
-
-        i = 1
-        score_filename = str(len(already_scored) + i) + '.txt' 
-        while score_filename in already_scored:
-            i += 1
-            score_filename = str(len(already_scored) + i) + '.txt' 
-            
-        print(score_filename)    
-        with open(scored_directory + '/' + score_filename, 'w') as f:
-            f.write(path_pair_string + "\n" + '|'.join(job))
-
-def get_embeddings(path_pair_string):
-    reviews = []
-    traces = []
-    for path in path_pair_string.split(','):
-        with open(re.sub('examples', 'embeddings', path)) as f:
-            reviews.append(f.read())
-        traces.append(path)
-        
-    return traces, reviews
-
-if __name__ == '__main__':
-
-
-    parser = argparse.ArgumentParser("rate_reviews")
-    parser.add_argument("-i", "--input_filename", help="A file name containing a list of paths to reviews.", type=str)
-    parser.add_argument("-p", "--positive_examples", help="A directory of positive examples.", type=str)
-    parser.add_argument("-n", "--negative_examples", help="A directory or negative examples.", type=str)
-    parser.add_argument("-m", "--multiprocessing", help="Number of parallel processes.", type=int)
-    parser.add_argument("-s", "--scored_directory", help="A file name containing paths that are a list of reviews.", type=str)
-
-    args = parser.parse_args()
-    with open(args.input_filename) as f:
-        trainset_paths = f.read().split("\n")
-        
-    print("{} training samples".format(len(trainset_paths)))
-
-
-    scored_embeddings, F1, scored_embedding_id_pairs = get_scored_emebeddings(args.input_filename, args.scored_directory)
-
-    positive_examples = os.listdir(args.positive_examples)
-    negative_examples = os.listdir(args.negative_examples)
-    embedding_space, evaluated_ids, id_to_pair = get_embedding_space(positive_examples, negative_examples, scored_embedding_id_pairs) # a pairwise concatenation of one poitive and one negative
-
-    qc = bo_embedding(DotProduct()+WhiteKernel(), embedding_space, args.multiprocessing)
-    qc.fit_gpr(scored_embeddings, F1)
-    qc.get_candidates(2000)
-    results = qc.calculate_qei()
-
-    sentiments = ['positive', 'negative']
-    next_batch = pd.DataFrame({'ids': qc.candidate_ids, 'scores': qc.scores}).sort_values('scores', ascending=False)['ids'].iloc[0]
-        
-    if args.multiprocessing > 1:
-
-        jobs = []
-
-        for job_id, batch in enumerate(next_batch):
-
-            traces, reviews = get_embeddings(id_to_pair[batch])
-
-            jobs.append({'trainset_paths': trainset_paths, 'reviews': reviews.copy(), 'sentiments': sentiments, 'job_id': job_id})
-
-        mp.set_start_method('spawn')
-        p = mp.Pool(args.multiprocessing)
-        job_results = p.map(score_prompt.worker, jobs)
-        p.close()
-        
-        save(args.scored_directory, id_to_pair[batch], job_results)
-        
-    else:
-        
-        traces, reviews = get_embeddings(id_to_pair[next_batch])
-        results = score_prompt.predict({'trainset_paths': trainset_paths, 'reviews': reviews.copy(), 'sentiments': sentiments})
-        save(args.scored_directory, id_to_pair[next_batch], [results])
 
 This script goes through the score cases and creates an input and an output for the Bayesian Process Regressor. The input to the objective function is the set of embeddings of the examples and the output is the F1 score.
 
@@ -603,8 +273,9 @@ BO_Embedding — A class that creates a workspace for performing Bayesian Optimi
 predict — This function performs the same loop that as in rate_reviews.py but does it in a separate function is a separate library taking a single json argument. This is easier for multiprocessing.
 
 It is called in a similar way except that it includes the location of the directory where the scores are kept.
-
+```
 python optimize_few_shot.py -i train_paths.txt -p examples/positive -n examples/negative -s scores -m 2
+```
 Though the Bayesian Optimization can be run for a single example at a time, this script demonstrates batch Bayesian Optimization which suggests the optimal batch of examples to check. This script uses multiprocessing to orchestrate multiple worker processes. If you want to see how this works without multiprocessing you can simply pass 1 to the -m argument
 
 Results
