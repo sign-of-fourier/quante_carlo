@@ -10,7 +10,7 @@ The dataset I will be working with is the IMDb dataset.
 The task is to classify sentiment. Here is an example of a short prompt:
 
 System
-<code>
+``
 You are a sentiment analyzer.
 Your job is to determine if a movie review is 'positive' or 'negative'.
 User
@@ -32,7 +32,7 @@ The way Ben Coccio(the director) decided to film it was magnificent. He filmed i
 He filmed it in the actors own rooms and used the actors real parents as their parents in the film. Also the actors were filming too using camcorders making it seem much more like a video diary. 
 It is almost artful.(if that is indeed a word) There are a few slip ups however, for example when Cal calls brads(?) land rover a range rover(or vice versa, It's been awhile since I've seen it
 Notice that there is an example. This is called 1 shot prompting. When there are a few examples, it is called few shot prompting. Few shot prompting has been known to improve the results from a LLM.
-</code>
+``
 
 The optimization task is to select examples that improve the performance of the prompt. Since the data we have from Kaggle is labeled, we can measure the performance.
 
